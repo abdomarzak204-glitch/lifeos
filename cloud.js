@@ -7,3 +7,28 @@ export const sendCode=email=>request('/auth/v1/otp',{email,create_user:true},fal
 export async function verifyCode(email,token){const r=await request('/auth/v1/verify',{email,token,type:'email'},false);sessionStorage.setItem('lifeos-session',JSON.stringify(r));}
 export async function signOut(){try{await request('/auth/v1/logout',{});}finally{sessionStorage.removeItem('lifeos-session');}}
 export const rpc=(name,args={})=>request('/rest/v1/rpc/'+name,args);
+const base64url=bytes=>btoa(String.fromCharCode(...bytes)).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+export async function githubLogin(){
+ const c=configuration();if(!c)throw Error('Configure le service avant de te connecter.');
+ const verifier=base64url(crypto.getRandomValues(new Uint8Array(32)));
+ const challenge=base64url(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(verifier))));
+ sessionStorage.setItem('lifeos-pkce',JSON.stringify({verifier,created:Date.now()}));
+ const redirect=new URL('./',location.href).href;
+ const url=new URL(c.url+'/auth/v1/authorize');
+ url.search=new URLSearchParams({provider:'github',redirect_to:redirect,code_challenge:challenge,code_challenge_method:'s256'}).toString();
+ location.assign(url.href);
+}
+export async function finishLogin(){
+ const url=new URL(location.href),code=url.searchParams.get('code'),error=url.searchParams.get('error_description');
+ if(!code&&!error)return false;
+ url.searchParams.delete('code');url.searchParams.delete('error');url.searchParams.delete('error_description');url.searchParams.delete('error_code');
+ history.replaceState(null,'',url.pathname+url.search);
+ const pending=JSON.parse(sessionStorage.getItem('lifeos-pkce')||'null');
+ sessionStorage.removeItem('lifeos-pkce');
+ if(error)throw Error(error);
+ if(!pending||Date.now()-pending.created>600000)throw Error('Connexion expirée. Recommence depuis ce navigateur.');
+ const r=await request('/auth/v1/token?grant_type=pkce',{auth_code:code,code_verifier:pending.verifier},false);
+ if(!r.access_token||!r.refresh_token||!r.user)throw Error('Réponse de connexion invalide.');
+ sessionStorage.setItem('lifeos-session',JSON.stringify({...r,expires_at:r.expires_at||Math.floor(Date.now()/1000)+r.expires_in}));
+ return true;
+}
