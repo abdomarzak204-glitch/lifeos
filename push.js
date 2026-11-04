@@ -1,5 +1,5 @@
-import {configuration,session,rpc} from './cloud.js';
-import {reminderQueue} from './reminders.js';
+import {configuration,session,rpc} from './cloud.js?v=essentials8';
+import {reminderQueue} from './reminders.js?v=essentials8';
 let busy=false,dirty=false;
 const device=()=>{let id=localStorage.getItem('lifeos-device');if(!id){id=crypto.randomUUID();localStorage.setItem('lifeos-device',id);}return id;};
 function decode(value){return Uint8Array.from(atob(value.replace(/-/g,'+').replace(/_/g,'/').padEnd(Math.ceil(value.length/4)*4,'=')),c=>c.charCodeAt(0));}
